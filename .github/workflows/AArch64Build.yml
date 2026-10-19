@@ -70,6 +70,13 @@ jobs:
           fi
           tar -czf "${{ env.ARCHIVE_NAME }}" -C release_dist .
 
+      - name: Upload Release Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Linux-aarch64-release
+          path: ${{ env.ARCHIVE_NAME }}
+          if-no-files-found: error
+
       - name: Publish Draft Release
         uses: softprops/action-gh-release@v2
         with:

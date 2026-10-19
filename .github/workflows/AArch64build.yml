@@ -1,0 +1,76 @@
+me: Release (Linux aarch64)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version (e.g. v1.0.0)"
+        required: true
+      release_notes:
+        description: "Release notes"
+        required: true
+      clean_version:
+        description: "Build app without git hash suffix"
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build and Release Linux aarch64
+    # Используем нативный ARM64 раннер от GitHub
+    runs-on: ubuntu-latest-arm64
+    env:
+      VERSION: ${{ github.event.inputs.version }}
+      APP_RELEASE_BUILD: ${{ github.event.inputs.clean_version }}
+      ARCHIVE_NAME: "LatticeLab-${{ github.event.inputs.version }}-linux-aarch64.tar.gz"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libx11-dev libxrandr-dev libudev-dev libgl1-mesa-dev \
+            libxcursor-dev libxi-dev libfreetype6-dev libxinerama-dev libwayland-dev
+
+      - name: Configure and Build
+        run: |
+          cmake --preset release \
+            -DAPP_RELEASE_BUILD=${{ env.APP_RELEASE_BUILD }} \
+            -DOPTIMIZE_FOR_NATIVE=OFF \
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+          cmake --build --preset release --target LatticeLab
+
+      - name: Prepare Release Dist
+        shell: bash
+        run: |
+          mkdir -p release_dist/assets
+          cp LatticeLab release_dist/
+          if [ -f Lattice/Lattice-cli ]; then
+            cp Lattice/Lattice-cli release_dist/
+          fi
+          # Ищем библиотеки .so* на aarch64
+          find . -maxdepth 1 -type f -name "*.so*" -exec cp {} release_dist/ \; || true
+          cp -r assets/* release_dist/assets/
+          if [ -d Mods ]; then
+            cp -r Mods release_dist/
+          fi
+          if [ -d Plugins ]; then
+            cp -r Plugins release_dist/
+          fi
+          tar -czf "${{ env.ARCHIVE_NAME }}" -C release_dist .
+
+      - name: Publish Draft Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.VERSION }}
+          name: Release ${{ env.VERSION }}
+          body: ${{ github.event.inputs.release_notes }}
+          files: ${{ env.ARCHIVE_NAME }}
+          draft: true
+          prerelease: false
+

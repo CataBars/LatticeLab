@@ -19,7 +19,7 @@ permissions:
   contents: write
 
 jobs:
-  build-and-release:
+  build:
     name: Build and Release Linux aarch64
     # Используем стандартный бесплатный раннер x86_64
     runs-on: ubuntu-latest

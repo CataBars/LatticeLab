@@ -1,4 +1,4 @@
-me: Release (Linux aarch64)
+name: Release (Linux aarch64)
 
 on:
   workflow_dispatch:

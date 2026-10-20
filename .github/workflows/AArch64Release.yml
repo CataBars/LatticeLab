@@ -35,6 +35,20 @@ jobs:
         run: |
           sudo dpkg --add-architecture arm64
           sudo apt-get update
+
+          if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
+              sudo sed -i 's/Architectures: amd64 i386/Architectures: amd64/g' /etc/apt/sources.list.d/ubuntu.sources
+          fi
+          
+          sudo tee /etc/apt/sources.list.d/arm64-ports.sources <<EOF
+          Types: deb
+          URIs: http://ubuntu.com
+          Suites: noble noble-updates noble-security
+          Components: main universe restricted multiverse
+          Architectures: arm64
+          EOF
+
+          sudo apt-get update
           # Устанавливаем компилятор для aarch64 и ARM64-версии зависимостей
           sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
             libx11-dev:arm64 libxrandr-dev:arm64 libudev-dev:arm64 libgl1-mesa-dev:arm64 \

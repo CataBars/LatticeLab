@@ -19,6 +19,7 @@
 #include <intrin.h>
 #include <windows.h>
 #elif defined(__linux__)
+#if defined(__x86_64__) || defined(__i386__)
 #include <cpuid.h>
 #include <sys/utsname.h>
 #include <sys/sysinfo.h>

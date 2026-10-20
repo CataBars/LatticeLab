@@ -33,9 +33,7 @@ jobs:
       - name: Install Cross-Compilation Tools & Dependencies
         run: |
           sudo dpkg --add-architecture arm64
-          if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
-              sudo sed -i 's/Architectures: amd64 i386/Architectures: amd64/g' /etc/apt/sources.list.d/ubuntu.sources
-          fi
+          echo 'APT::Architectures:: "amd64";' | sudo tee /etc/apt/apt.conf.d/99-restrict-amd64
           
           sudo tee /etc/apt/sources.list.d/arm64-ports.sources <<EOF
           Types: deb

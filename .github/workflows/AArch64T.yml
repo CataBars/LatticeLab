@@ -1,0 +1,126 @@
+name: Release (Termux Native aarch64 Build)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version (e.g. v1.0.0)"
+        required: true
+      release_notes:
+        description: "Release notes"
+        required: true
+      clean_version:
+        description: "Build app without git hash suffix"
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  build-termux-native:
+    name: Build Native Termux aarch64 (Bionic libc)
+    runs-on: ubuntu-latest
+    # Используем официальный контейнер Termux для эмуляции его окружения и архитектуры aarch64
+    container:
+      image: termux/termux-docker:aarch64
+
+    env:
+      VERSION: ${{ github.event.inputs.version }}
+      APP_RELEASE_BUILD: ${{ github.event.inputs.clean_version }}
+      ARCHIVE_NAME: "LatticeLab-${{ github.event.inputs.version }}-termux-native-aarch64.tar.gz"
+
+    steps:
+      # Контейнер работает под эмуляцией qemu-user, поэтому сначала обновляем окружение Termux
+      - name: Initialize Termux Environment
+        run: |
+          pkg update -y
+          pkg upgrade -y
+          # Устанавливаем базовые утилиты сборки и git
+          pkg install -y git cmake ninja clang make pkg-config
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Termux Native Dependencies
+        run: |
+          # Подключаем репозиторий графики Termux (X11-repo)
+          pkg install -y x11-repo
+          
+          # Устанавливаем нативные (Bionic) библиотеки, необходимые для GLFW и wgpu
+          pkg install -y \
+            libx11 libxrandr libvulkan-loader libandroid-wordexp \
+            libxcursor libxi libfreetype libxinerama wayland libxkbcommon \
+            vulkan-headers libtbb
+
+      - name: Configure and Build
+        run: |
+          # Так как сборка идет внутри «родного» окружения Termux, нам не нужны сложные тулчейны.
+          # Используем системный Clang из Termux, который по умолчанию собирает под Bionic.
+          cmake --preset release \
+            -G Ninja \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DAPP_RELEASE_BUILD=${{ env.APP_RELEASE_BUILD }} \
+            -DOPTIMIZE_FOR_NATIVE=OFF \
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+            
+          cmake --build --preset release --target LatticeLab
+
+      - name: Prepare Release Dist
+        shell: bash
+        run: |
+          mkdir -p release_dist/assets
+          cp LatticeLab release_dist/
+          if [ -f Lattice/Lattice-cli ]; then
+            cp Lattice/Lattice-cli release_dist/
+          fi
+          
+          # Собираем динамические библиотеки (.so), если они скомпилировались внутри build
+          find build -type f -name "*.so*" -exec cp {} release_dist/ \; || true
+          
+          cp -r assets/* release_dist/assets/
+          if [ -d Mods ]; then
+            cp -r Mods release_dist/
+          fi
+          if [ -d Plugins ]; then
+            cp -r Plugins release_dist/
+          fi
+          tar -czf "${{ env.ARCHIVE_NAME }}" -C release_dist .
+
+      - name: Upload Release Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Termux-Native-aarch64-release
+          path: ${{ env.ARCHIVE_NAME }}
+          if-no-files-found: error
+
+  create-release:
+      name: Create GitHub Release
+      runs-on: ubuntu-latest
+      needs: build-termux-native
+  
+      steps:
+        - name: Download Built Artifacts
+          uses: actions/download-artifact@v4
+          with:
+            path: release_artifacts
+            merge-multiple: true
+  
+        - name: Show Release Files
+          run: find release_artifacts -maxdepth 3 -type f | sort
+
+        - name: Publish Draft Release
+          uses: softprops/action-gh-release@v2
+          with:
+            tag_name: ${{ github.event.inputs.version }}
+            name: Release ${{ github.event.inputs.version }}
+            body: ${{ github.event.inputs.release_notes }}
+            files: |
+              release_artifacts/*.tar.gz
+            draft: true
+            prerelease: false
+            

@@ -21,8 +21,7 @@ permissions:
 jobs:
   build:
     name: Build and Release Linux aarch64
-    # Используем стандартный бесплатный раннер x86_64
-    runs-on: ubuntu-24.04-arm64
+    runs-on: ubuntu-latest
     env:
       VERSION: ${{ github.event.inputs.version }}
       APP_RELEASE_BUILD: ${{ github.event.inputs.clean_version }}
@@ -33,20 +32,34 @@ jobs:
 
       - name: Install Cross-Compilation Tools & Dependencies
         run: |
+          sudo dpkg --add-architecture arm64
+          if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
+              sudo sed -i 's/Architectures: amd64 i386/Architectures: amd64/g' /etc/apt/sources.list.d/ubuntu.sources
+          fi
+          
+          sudo tee /etc/apt/sources.list.d/arm64-ports.sources <<EOF
+          Types: deb
+          URIs: http://ubuntu.com
+          Suites: noble noble-updates noble-security
+          Components: main universe restricted multiverse
+          Architectures: arm64
+          EOF
           sudo apt-get update
-          sudo apt-get install -y gcc g++ \
-            libx11-dev libxrandr-dev libudev-dev libgl1-mesa-dev \
-            libxcursor-dev libxi-dev libfreetype6-dev libxinerama-dev libwayland-dev
-
+          # Устанавливаем компилятор для aarch64 и ARM64-версии зависимостей
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
+            libx11-dev:arm64 libxrandr-dev:arm64 libudev-dev:arm64 libgl1-mesa-dev:arm64 \
+            libxcursor-dev:arm64 libxi-dev:arm64 libfreetype6-dev:arm64 libxinerama-dev:arm64 libwayland-dev:arm64
       - name: Configure and Build
         run: |
+          # Передаем CMake указание использовать компилятор aarch64
           cmake --preset release \
+            -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc \
+            -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++ \
             -DAPP_RELEASE_BUILD=${{ env.APP_RELEASE_BUILD }} \
-            -DOPTIMIZE_FOR_NATIVE=ON \
+            -DOPTIMIZE_FOR_NATIVE=OFF \
             -DCMAKE_POLICY_VERSION_MINIMUM=3.5
             
           cmake --build --preset release --target LatticeLab
-
       - name: Prepare Release Dist
         shell: bash
         run: |
@@ -64,7 +77,6 @@ jobs:
             cp -r Plugins release_dist/
           fi
           tar -czf "${{ env.ARCHIVE_NAME }}" -C release_dist .
-
       - name: Upload Release Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -97,4 +109,3 @@ jobs:
               release_artifacts/*.tar.gz
             draft: true
             prerelease: false
-          

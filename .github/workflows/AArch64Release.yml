@@ -55,6 +55,8 @@ jobs:
           cmake --preset release \
             -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc \
             -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++ \
+            -DCMAKE_SYSTEM_NAME=Linux \
+            -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
             -DAPP_RELEASE_BUILD=${{ env.APP_RELEASE_BUILD }} \
             -DOPTIMIZE_FOR_NATIVE=OFF \
             -DCMAKE_POLICY_VERSION_MINIMUM=3.5
